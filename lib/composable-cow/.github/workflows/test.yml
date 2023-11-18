@@ -1,0 +1,41 @@
+name: test
+
+on: 
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  check:
+    strategy:
+      fail-fast: true
+
+    name: Foundry project
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Run Forge build
+        run: |
+          forge --version
+          forge build --skip test
+        id: build
+
+      - name: Run Forge tests
+        run: |
+          forge test -vvv --optimize --optimizer-runs 20000 --no-match-test "fork|simulate" --fuzz-seed 672679878
+        id: test
