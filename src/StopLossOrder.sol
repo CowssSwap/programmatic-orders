@@ -69,7 +69,6 @@ contract StopLossOrder is BaseConditionalOrder {
     ) public view override returns (GPv2Order.Data memory order) {
         Data memory data = abi.decode(staticInput, (Data));
 
-        // scope variables to avoid stack too deep error
         {
             (, int256 basePrice, , uint256 sellUpdatedAt, ) = data
                 .sellTokenPriceOracle
