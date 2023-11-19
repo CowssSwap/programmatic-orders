@@ -8,6 +8,7 @@ import {ComposableCoW} from "composable/ComposableCoW.sol";
 import "composable/BaseConditionalOrder.sol";
 import "composable/interfaces/IAggregatorV3Interface.sol";
 import "composable/interfaces/IConditionalOrder.sol";
+import "../lib/chronicle-std/src/IChronicle.sol";
 
 // --- error strings
 
@@ -54,8 +55,8 @@ contract StopLossOrder is BaseConditionalOrder {
         bool isSellOrder;
         bool isPartiallyFillable;
         uint32 validityBucketSeconds;
-        IAggregatorV3Interface sellTokenPriceOracle;
-        IAggregatorV3Interface buyTokenPriceOracle;
+        IChronicle sellTokenPriceOracle;
+        IChronicle buyTokenPriceOracle;
         int256 strike;
         uint256 maxTimeSinceLastOracleUpdate;
     }
@@ -70,23 +71,18 @@ contract StopLossOrder is BaseConditionalOrder {
         Data memory data = abi.decode(staticInput, (Data));
 
         {
-            (, int256 basePrice, , uint256 sellUpdatedAt, ) = data
+            (uint basePrice, uint sellAge) = data
                 .sellTokenPriceOracle
-                .latestRoundData();
-            (, int256 quotePrice, , uint256 buyUpdatedAt, ) = data
+                .readWithAge();
+            (uint quotePrice, uint buyAge) = data
                 .buyTokenPriceOracle
-                .latestRoundData();
-
-            /// @dev Guard against invalid price data
-            if (!(basePrice > 0 && quotePrice > 0)) {
-                revert IConditionalOrder.OrderNotValid(ORACLE_INVALID_PRICE);
-            }
+                .readWithAge();
 
             /// @dev Guard against stale data at a user-specified interval. The maxTimeSinceLastOracleUpdate should at least exceed the both oracles' update intervals.
             if (
-                !(sellUpdatedAt >=
+                !(sellAge >=
                     block.timestamp - data.maxTimeSinceLastOracleUpdate &&
-                    buyUpdatedAt >=
+                    buyAge >=
                     block.timestamp - data.maxTimeSinceLastOracleUpdate)
             ) {
                 revert IConditionalOrder.OrderNotValid(ORACLE_STALE_PRICE);
@@ -94,19 +90,14 @@ contract StopLossOrder is BaseConditionalOrder {
 
             // Normalize the decimals for basePrice and quotePrice, scaling them to 18 decimals
             // Caution: Ensure that base and quote have the same numeraires (e.g. both are denominated in USD)
-            basePrice = scalePrice(
-                basePrice,
-                data.sellTokenPriceOracle.decimals(),
-                18
-            );
-            quotePrice = scalePrice(
-                quotePrice,
-                data.buyTokenPriceOracle.decimals(),
-                18
-            );
+            basePrice = uint(scalePrice(int256(basePrice), 18, 18));
+            quotePrice = uint(scalePrice(int256(quotePrice), 18, 18));
 
             /// @dev Scale the strike price to 18 decimals.
-            if (!((basePrice * SCALING_FACTOR) / quotePrice <= data.strike)) {
+            if (
+                !((int256(basePrice) * SCALING_FACTOR) / int256(quotePrice) <=
+                    data.strike)
+            ) {
                 revert IConditionalOrder.OrderNotValid(STRIKE_NOT_REACHED);
             }
         }
