@@ -7,3 +7,6 @@
 [submodule "lib/composable-cow"]
 	path = lib/composable-cow
 	url = https://github.com/cowprotocol/composable-cow
+[submodule "lib/chronicle-std"]
+	path = lib/chronicle-std
+	url = https://github.com/chronicleprotocol/chronicle-std
